@@ -1,0 +1,40 @@
+%%cu
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <iostream>
+#include "curand.h"
+#include "curand_kernel.h"
+
+
+__device__ bool in_circle(curandState_t* state)
+{
+	float x = curand_uniform(state);
+	float y = curand_uniform(state);
+	return x * x + y * y <= 1.;
+}
+
+
+__global__ void count_pi(int* result)
+{
+	curandState_t state;
+	long seed = (threadIdx.x + blockIdx.x) + (threadIdx.y + blockIdx.y) % 1000;
+	curand_init(seed, 0, 0, &state);
+
+	if (in_circle(&state))
+		atomicAdd(*result, 1);
+}
+
+int main()
+{
+		int n = 100;
+		int a;
+		int *d_a;
+	  cudaMalloc((void**)&d_a, sizeof(int));
+
+		count_pi<<<1, n>>>(d_a);
+
+		cudaMemcpy(&a, d_a, sizeof(int), cudaMemcpyDeviceToHost);
+
+		std::cout << "Pi: " << (float)a/n << std::endl;
+}
