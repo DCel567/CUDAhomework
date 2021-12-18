@@ -1,0 +1,51 @@
+%%cu
+#include "cmath"
+#include <stdio.h>
+
+#define N 10 
+
+__global__ void multiply(float *a, float *b, float *c)
+{
+	int i = threadIdx.x; 
+	if (i >= N)
+    return;
+	
+	c[i] = __fmul_rn(a[i], b[i]);
+}
+
+int main() 
+{
+	
+	float a[N], b[N], c[N];
+
+	float *dev_a, *dev_b, *dev_c;
+
+	for (int i = 0; i < N; i++)
+	{
+		a[i] = i;
+		b[i] = -i;
+	}
+
+	cudaMalloc((void**)&dev_a, N * sizeof(float));
+	cudaMalloc((void**)&dev_b, N * sizeof(float));
+	cudaMalloc((void**)&dev_c, N * sizeof(float));
+
+	cudaMemcpy(dev_a, a, N * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_b, b, N * sizeof(float), cudaMemcpyHostToDevice);
+
+	multiply<<<1, N >>>(dev_a, dev_b, dev_c);
+
+	cudaMemcpy(c, dev_c, N * sizeof(float), cudaMemcpyDeviceToHost);
+
+	float res = 0; 
+
+	for (int i = 0; i < N; i++)
+		  res += c[i];
+
+	printf("prod = %f\n", res);
+	cudaFree(dev_a);
+	cudaFree(dev_b);
+	cudaFree(dev_c);
+ 
+	return 0;
+}
