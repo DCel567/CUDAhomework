@@ -1,0 +1,40 @@
+%%cu
+#include <cmath>
+#include <stdio.h>
+
+#define N 100
+
+__global__ void Z(float *a, float *b)
+{
+    int i = threadIdx.x;
+    a[i] = 1. / pow((float)i + 1, *b);
+}
+
+
+int main()
+{
+    float power = 2;
+    float a[N];
+    float *d_power = 0;
+    float *d_a = 0;
+    float sum = 0;
+
+    cudaMalloc((void**)&d_a, N * sizeof(float));
+    cudaMalloc((void**)&d_power, sizeof(float));
+ 
+    cudaMemcpy(d_a, a, N * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_power, &power, sizeof(float), cudaMemcpyHostToDevice);
+
+    Z<<<1, N >>>(d_a, d_power);
+
+    cudaMemcpy(a, d_a, N * sizeof(float), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < N; ++i) 
+        sum += a[i];
+
+    printf("%f\n", sum);
+    cudaFree(d_a);
+    cudaFree(d_power);
+ 
+    return 0;
+}
