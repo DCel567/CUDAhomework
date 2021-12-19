@@ -1,0 +1,76 @@
+#include "cmath"
+#include <stdio.h>
+
+#define N 16 
+#define BLOCK_SIZE 32
+
+__global__ void scalMult(const int* a, const int* b, int* c)
+{
+
+	int sum = 0.0;
+
+	__shared__ int ash[BLOCK_SIZE];
+	__shared__ int bsh[BLOCK_SIZE];
+
+	ai[threadIdx.x] = a[blockIdx.x * blockDim.x + threadIdx.x];
+	bi[threadIdx.x] = b[blockIdx.x * blockDim.x + threadIdx.x];
+
+	__syncthreads();
+
+	if (threadIdx.x == 0)
+	{
+		sum = 0.0;
+		for (int j = 0; j < BLOCK_SIZE; j++)
+			sum += ai[j] * bi[j];
+		c[blockIdx.x] = sum;
+	}
+}
+
+int main(){
+
+	int a[N], b[N], c[N];
+	int* dev_a, * dev_b, * dev_c;
+
+	for (int i = 0; i < N; i++)
+	{
+		a[i] = i;
+		b[i] = N - 1;
+	}
+
+	int size = N * sizeof(int);
+
+	cudaMalloc((void**)&dev_a, size);
+	cudaMalloc((void**)&dev_b, size);
+	cudaMalloc((void**)&dev_c, size);
+
+	cudaMemcpy(dev_a, a, size, cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_b, b, size, cudaMemcpyHostToDevice);
+
+	int GRID_SIZE = N / BLOCK_SIZE + 1;
+
+  float KernelTime;
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
+
+	scalMult <<<GRID_SIZE, BLOCK_SIZE>>> (dev_a, dev_b, dev_c);
+
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&KernelTime, start, stop);
+  
+	printf("time = %f\n", KernelTime);
+  
+	cudaMemcpy(c, dev_c, size, cudaMemcpyDeviceToHost);
+
+	int scalMult = 0;
+	for (int i = 0; i < GRID_SIZE; i++)
+		scalMult += c[i];
+	printf("scalMult = %d", scalMult);
+
+  cudaFree(dev_a);
+	cudaFree(dev_b);
+	cudaFree(dev_c);
+	return 0;
+}
