@@ -1,0 +1,50 @@
+#include "cmath"
+#include <stdio.h>
+
+#define N 100 
+#define BASE_TYPE float
+#define BLOCK_SIZE 32
+
+__global__ void ExpIntegralByRectangle(const BASE_TYPE* xs, BASE_TYPE* h, BASE_TYPE* F)
+{
+	__shared__ BASE_TYPE fsh[BLOCK_SIZE];
+	fsh[threadIdx.x] = *h * __expf(xs[blockIdx.x * blockDim.x + threadIdx.x]);
+	__syncthreads();
+	if (blockIdx.x * blockDim.x + threadIdx.x < N)
+		F[blockIdx.x * blockDim.x + threadIdx.x] = fsh[threadIdx.x];
+}
+
+int main()
+{
+	BASE_TYPE xs[N], F[N], h;
+	BASE_TYPE* dev_xs, * dev_F, *dev_h;
+	
+	BASE_TYPE a = 0;
+	BASE_TYPE b = 1;
+	h = (b - a) / N;
+
+	for (int i = 0; i < N; i++)
+		xs[i] = a + (2 * i + 1) * h / 2;
+
+	cudaMalloc((void**)&dev_xs, N * sizeof(BASE_TYPE));
+	cudaMalloc((void**)&dev_F, N * sizeof(BASE_TYPE));
+	cudaMalloc((void**)&dev_h, sizeof(BASE_TYPE));
+
+	cudaMemcpy(dev_xs, xs, N * sizeof(BASE_TYPE), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_h, &h, sizeof(BASE_TYPE), cudaMemcpyHostToDevice);
+
+	int GRID_SIZE = N / BLOCK_SIZE + 1;
+	ExpIntegralByRectangle <<<GRID_SIZE, BLOCK_SIZE >>> (dev_xs, dev_h, dev_F);
+
+	cudaMemcpy(F, dev_F, N * sizeof(float), cudaMemcpyDeviceToHost);
+
+  float sum = 0;
+	for (int i = 0; i < N; i++)
+		sum += F[i];
+	printf("sum = %f", sum);
+
+	cudaFree(dev_xs);
+	cudaFree(dev_h);
+	cudaFree(dev_F);
+	return 0;
+}
