@@ -1,0 +1,107 @@
+%%cu
+#include "cmath"
+#include <stdio.h>
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+
+#define N 10 
+
+
+__global__ void multiplyf(float *a, float *b, float *c)
+{
+	int i = threadIdx.x; 
+	if (i >= N)
+    return;
+	
+	c[i] = __fmul_rn(a[i], b[i]);
+}
+
+__global__ void multiplyd(double *a, double *b, double *c)
+{
+	int i = threadIdx.x; 
+	if (i >= N)
+    return;
+	
+	c[i] = __dmul_rn(a[i], b[i]);
+}
+
+
+int main() 
+{
+	float af[N], bf[N], cf[N];
+	double ad[N], bd[N], cd[N];
+
+	float *dev_af, *dev_bf, *dev_cf;
+	double *dev_ad, *dev_bd, *dev_cd;
+
+	cudaEvent_t startf, stopf, startd, stopd;
+	cudaEventCreate(&startf);
+	cudaEventCreate(&stopf);
+	cudaEventCreate(&startd);
+	cudaEventCreate(&stopd);
+
+	for (int i = 0; i < N; i++)
+	{
+		af[i] = i*1.1;
+		ad[i] = i*1.1;
+		bf[i] = -i*1.1;
+		bd[i] = -i*1.1;
+	}
+
+	cudaMalloc((void**)&dev_af, N * sizeof(float));
+	cudaMalloc((void**)&dev_bf, N * sizeof(float));
+	cudaMalloc((void**)&dev_cf, N * sizeof(float));
+
+	cudaMalloc((void**)&dev_ad, N * sizeof(double));
+	cudaMalloc((void**)&dev_bd, N * sizeof(double));
+	cudaMalloc((void**)&dev_cd, N * sizeof(double));
+
+	cudaMemcpy(dev_af, &af, N * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_bf, &bf, N * sizeof(float), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(dev_ad, &ad, N * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_bd, &bd, N * sizeof(double), cudaMemcpyHostToDevice);
+
+	cudaEventRecord(startf, 0);
+	multiplyf<<<1, N>>>(dev_af, dev_bf, dev_cf);
+	cudaEventRecord(stopf, 0);
+	cudaEventSynchronize(stopf);
+
+	float timef;
+	cudaEventElapsedTime(&timef, startf, stopf);
+	printf("Float time is %f\n", timef);
+
+	cudaEventRecord(startd, 0);
+	multiplyd<<<1, N>>>(dev_ad, dev_bd, dev_cd);
+	cudaEventRecord(stopd, 0);
+	cudaEventSynchronize(stopd);
+
+	float timed;
+	cudaEventElapsedTime(&timed, startd, stopd);
+	printf("Double time is %f\n", timed);
+
+	cudaMemcpy(cf, dev_cf, N * sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(cd, dev_cd, N * sizeof(double), cudaMemcpyDeviceToHost);
+
+	float resf = 0; 
+	double resd = 0;
+
+	for (int i = 0; i < N; i++){
+		  resf += cf[i];
+			resd += cd[i];
+	}
+
+	printf("vector sums are %f for float and %f for double\n", resf, resd);
+	//только printf конвертирует флот в дабл перед принтом, поэтому я никаких
+	//выводов о точности не сделаю
+
+	cudaFree(dev_af);
+	cudaFree(dev_bf);
+	cudaFree(dev_cf);
+
+	cudaFree(dev_ad);
+	cudaFree(dev_bd);
+	cudaFree(dev_cd);
+ 
+	return 0;
+}
